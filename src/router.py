@@ -22,6 +22,12 @@ class Router:
             self.rxs[port] = list()
         self.rxs[port].append(rx)
 
+    def unregister_rx(self, port: int, rx: Callable[[bytes], None]):
+        if port in self.rxs:
+            self.rxs[port].remove(rx)
+            if not self.rxs[port]:
+                del self.rxs[port]
+
     def output_packet(self, port: int, packet: bytes):
         for rx_handler in self.rxs.get(port, list()):
             rx_handler(packet)
