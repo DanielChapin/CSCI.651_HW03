@@ -9,7 +9,7 @@ duplex = UDPDuplex("localhost", port, "localhost", dst_port)
 
 
 with duplex.create_handle() as handle:
-    handle.recv = lambda payload: print(f"From peer: {payload.decode()}")
+    handle.recv = lambda payload: print(f"From {port}: {payload.decode()}")
     counter = 0
     while True:
         handle.send(f"Hello, Peer! (#{counter})".encode())
