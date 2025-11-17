@@ -1,7 +1,7 @@
-from typing import Callable
+from typing import Any, Callable
 from sched import scheduler
 from time import time, sleep
-from random import random, sample, randrange
+from random import random, randrange
 
 
 class Router:
@@ -9,6 +9,7 @@ class Router:
     corrupt_chance: float
     min_delay: float
     max_delay: float
+    auto_start: bool
 
     rxs: dict[int, list[Callable[[bytes], None]]]
     sch: scheduler
@@ -16,13 +17,14 @@ class Router:
     def __init__(self) -> None:
         self.rxs = dict()
         self.sch = scheduler(time, sleep)
+        self.auto_start = False
 
-    def register_rx(self, port: int, rx: Callable[[bytes], None]):
+    def register_rx(self, port: int, rx: Callable[[bytes], Any]):
         if port not in self.rxs:
             self.rxs[port] = list()
         self.rxs[port].append(rx)
 
-    def unregister_rx(self, port: int, rx: Callable[[bytes], None]):
+    def unregister_rx(self, port: int, rx: Callable[[bytes], Any]):
         if port in self.rxs:
             self.rxs[port].remove(rx)
             if not self.rxs[port]:
@@ -50,11 +52,13 @@ class Router:
         if random() < self.drop_chance:
             return
 
-        if random() < self.corrupt_chance:
-            packet = self.corrupt_packet(packet)
+        packet = self.corrupt_packet(packet)
 
         delay = self.min_delay + random() * (self.max_delay - self.min_delay)
         self.sch.enter(delay, 0, lambda: self.output_packet(port, packet), ())
+
+        if self.auto_start:
+            self.start(False)
 
     def start(self, blocking: bool = True):
         self.sch.run(blocking=blocking)

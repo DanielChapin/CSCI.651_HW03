@@ -1,7 +1,6 @@
-from typing import Callable
 from UDPDuplex import UDPDuplex
 from router import Router
-from threading import Thread
+from time import sleep
 
 
 class UnstableTunnel:
@@ -10,22 +9,15 @@ class UnstableTunnel:
     def __init__(self, inner_router: Router) -> None:
         self.router = inner_router
 
-    def start(self, a_interface: UDPDuplex, b_interface: UDPDuplex, host: str = "127.0.0.1"):
-        raise NotImplementedError()
+    def start(self, a_interface: UDPDuplex, b_interface: UDPDuplex):
+        self.router.auto_start = True
+        with a_interface.create_handle() as a_handle, b_interface.create_handle() as b_handle:
+            self.router.register_rx(2, lambda packet: b_handle.send(packet))
+            self.router.register_rx(1, lambda packet: a_handle.send(packet))
 
+            a_handle.recv = lambda packet: self.router.tx(2, packet)
+            b_handle.recv = lambda packet: self.router.tx(1, packet)
 
-class UnstableClient:
-    host: str
-    port: int
-    rcv: Callable[[bytes], None]
-
-    def __init__(self, rcv: Callable[[bytes], None], port: int, host: str = "127.0.0.1"):
-        self.host = host
-        self.port = port
-        self.rcv = rcv
-
-    def start(self):
-        raise NotImplementedError()
-
-    def send(self, packet: bytes):
-        raise NotImplementedError()
+            # TODO This is really stupid but it does in fact work
+            while True:
+                sleep(1000)
