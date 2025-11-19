@@ -1,37 +1,27 @@
+from typing import Callable
 from router import Router
-from queue import Queue
 import zlib
 
-
 class GoBackNClient:
-    router: Router
-    in_port: int
-    out_port: int
+    def send(self, send: bytes):
+        raise NotImplementedError()
 
-    def __init__(self, router: Router, in_port: int, out_port: int) -> None:
-        self.router = router
-        self.in_port = in_port
-        self.out_port = out_port
-        self.router.register_rx(self.in_port, self.rx_handler)
+    def recv(self, timeout: float | None = None) -> bytes:
+        raise NotImplementedError()
 
-    def rx_handler(self, packet: bytes):
-        raise NotImplementedError("rx_handler must be implemented by subclass")
-
-    def tx(self, packet: bytes):
-        self.router.tx(self.out_port, packet)
-
-
-class GoBackNSender(GoBackNClient):
+class GoBackNSender:
+    client: GoBackNClient
     n: int
     curr_seq: int
-    buf: Queue[bytes]
+    buf: list[bytes]
     timeout: float
 
-    def __init__(self, n: int) -> None:
+    def __init__(self, client: GoBackNClient, n: int) -> None:
         assert n > 0
+        self.client = client
         self.n = n
-        self.curr_seq = 0
-        self.buf = Queue(maxsize=n)
+        self.curr_seq = 1
+        self.buf = list()
         self.timeout = 7.5
 
     def create_packet(self, data: bytes) -> bytes:
@@ -47,15 +37,53 @@ class GoBackNSender(GoBackNClient):
 
         return checksum + dat
 
+    def decode_ack_packet(self, packet: bytes) -> int | None:
+        if len(packet) != 8:
+            return None
 
-class GoBackNReceiver(GoBackNClient):
+        recv_checksum = int.from_bytes(packet[0:4], byteorder="big")
+        seq_num = int.from_bytes(packet[4:8], byteorder="big")
+
+        computed_checksum = zlib.crc32(packet[4:8])
+        if recv_checksum != computed_checksum:
+            return None
+
+        return seq_num
+
+    def push(self, data: bytes):
+        payloads = [data[i:i+64] for i in range(0, len(data), 64)]
+        self.buf += payloads
+
+    def start(self):
+        """Blocking function that transmits until all queued data has been received by the client"""
+        raise NotImplementedError()
+        while len(self.buf) > 0:
+            pass
+
+
+class GoBackNReceiver:
+    client: GoBackNClient
     curr_seq: int
+    deliver: Callable[[bytes], None]
 
-    def __init__(self) -> None:
-        self.curr_seq = 0
+    def __init__(self, client: GoBackNClient, deliver: Callable[[bytes], None]) -> None:
+        self.client = client
+        self.deliver = deliver
+        self.curr_seq = 1
 
-    def create_ack_packet(self, seq_num: int) -> bytes:
+    def rx_handler(self, packet: bytes):
+        parsed = self.decode_packet(packet)
+        if parsed is None:
+            return
+
+        seq_num, data = parsed
+
+        raise NotImplementedError()
+
+    def create_ack_packet(self, seq_num: int | None = None) -> bytes:
         # ACK Packet format: <checksum(4 bytes)><seq_num(4 bytes)>
+        if seq_num is None:
+            seq_num = self.curr_seq
         seq_bytes = seq_num.to_bytes(4, byteorder="big")
         checksum = zlib.crc32(seq_bytes).to_bytes(4, byteorder="big")
         return checksum + seq_bytes
