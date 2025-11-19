@@ -1,20 +1,42 @@
-from typing import Callable
-from router import Router
+from typing import Any, Callable
 import zlib
+from UDPDuplex import UDPDuplex, JoinedUDPHandle
+
 
 class GoBackNClient:
-    def send(self, send: bytes):
+    timeout: float | None
+
+    def __init__(self, timeout: float | None) -> None:
+        self.timeout = timeout
+
+    def send(self, payload: bytes):
         raise NotImplementedError()
 
-    def recv(self, timeout: float | None = None) -> bytes:
+    def recv(self) -> bytes | None:
         raise NotImplementedError()
+
+
+class UDPDuplexGoBackNClient(GoBackNClient):
+    duplex: UDPDuplex
+    handle: JoinedUDPHandle
+
+    def __init__(self, duplex: UDPDuplex, timeout: float | None) -> None:
+        super().__init__(timeout)
+        self.duplex = duplex
+        self.handle = duplex.create_handle()
+
+    def send(self, payload: bytes):
+        self.handle.send(payload)
+
+    def recv(self) -> bytes | None:
+        return self.handle.listen_once()
+
 
 class GoBackNSender:
     client: GoBackNClient
     n: int
     curr_seq: int
     buf: list[bytes]
-    timeout: float
 
     def __init__(self, client: GoBackNClient, n: int) -> None:
         assert n > 0
@@ -22,12 +44,14 @@ class GoBackNSender:
         self.n = n
         self.curr_seq = 1
         self.buf = list()
-        self.timeout = 7.5
 
-    def create_packet(self, data: bytes) -> bytes:
+    def create_packet(self, data: bytes, seq_num: int | None = None) -> bytes:
         # Packet format: <checksum(4 bytes)><seq_num(4 bytes)><data_size(4 bytes)><data(data_size bytes)>
-        assert self.curr_seq < 2**32
-        seq_bytes = self.curr_seq.to_bytes(4, byteorder="big")
+        if seq_num is None:
+            seq_num = self.curr_seq
+
+        assert seq_num < 2**32
+        seq_bytes = seq_num.to_bytes(4, byteorder="big")
 
         assert len(data) < 2**32
         data_size = len(data).to_bytes(4, byteorder="big")
@@ -36,6 +60,9 @@ class GoBackNSender:
         checksum = zlib.crc32(dat).to_bytes(4, byteorder="big")
 
         return checksum + dat
+
+    def termination_packet(self, seq_num: int | None = None):
+        return self.create_packet(bytes(), seq_num=seq_num)
 
     def decode_ack_packet(self, packet: bytes) -> int | None:
         if len(packet) != 8:
@@ -71,15 +98,6 @@ class GoBackNReceiver:
         self.deliver = deliver
         self.curr_seq = 1
 
-    def rx_handler(self, packet: bytes):
-        parsed = self.decode_packet(packet)
-        if parsed is None:
-            return
-
-        seq_num, data = parsed
-
-        raise NotImplementedError()
-
     def create_ack_packet(self, seq_num: int | None = None) -> bytes:
         # ACK Packet format: <checksum(4 bytes)><seq_num(4 bytes)>
         if seq_num is None:
@@ -105,3 +123,27 @@ class GoBackNReceiver:
             return None
 
         return seq_num, data
+
+    def recv(self, deliver: Callable[[bytes], bool]):
+        while True:
+            pkt = self.client.recv()
+            if pkt == None:
+                print("[GBNR] Timed out")
+                continue
+
+            res = self.decode_packet(pkt)
+            if res == None:
+                print("[GBNR] Couldn't parse packet!")
+                continue
+
+            seq, data = res
+
+            if seq == self.curr_seq:
+                # Empty packet will be considered connection terminator
+                if len(data) == 0:
+                    break
+                deliver(data)
+                self.client.send(self.create_ack_packet())
+                self.curr_seq += 1
+            else:
+                self.client.send(self.create_ack_packet(self.curr_seq - 1))
