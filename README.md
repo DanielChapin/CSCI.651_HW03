@@ -2,6 +2,13 @@
 
 Author: Daniel Chapin (dsc4984)
 
+This project is structured into abstract implementation and demos.
+All of the implementation code can be found in `src/*.py`, and all of the demos can be found in `src/demos`.
+Note that the file sharing is also implemented via the demos so that the unstable router demo (`tunnel`) can be used with file sharing to induce unstable network conditions.
+
+The style of file sharing I went with was a server (`file_recepticle`) that waits for a connect and recieves a file from a sender.
+As such, the sender initiates the connection and selects the file.
+
 ## Usage Instructions
 
 This project has a series of demos for individual parts as well as the file transfer programs.
@@ -59,3 +66,11 @@ Third shell:
 ```sh
 ./demo udp_duplex 4383 4382
 ```
+
+### file_recepticle
+
+This program is the recieving end of the file sharing implementation.
+
+### send_file
+
+This program is the sending end of the file sharing implementation.
