@@ -25,7 +25,8 @@ def main():
         gbns = GoBackNSender(gbnc, args.window_size)
         gbns.push(in_file.read())
         # Indicator for end of file
-        gbns.push(bytes())
+        gbns.push(bytes(0))
+        print(gbns.buf)
         # Transmit until done
         gbns.start()
 

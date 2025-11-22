@@ -1,4 +1,4 @@
-from typing import Any, Callable
+from typing import Callable
 import zlib
 from UDPDuplex import UDPDuplex, JoinedUDPHandle
 import sched
@@ -85,8 +85,13 @@ class GoBackNSender:
         return seq_num
 
     def push(self, data: bytes):
-        payloads = [data[i:i+64] for i in range(0, len(data), 64)]
-        self.buf += payloads
+        max_len = 64
+        if len(data) < max_len:
+            self.buf.append(data)
+        else:
+            payloads = [data[i:i+max_len]
+                        for i in range(0, len(data), max_len)]
+            self.buf += payloads
 
     def start(self):
         """Blocking function that transmits until all queued data has been received by the client"""
@@ -106,7 +111,8 @@ class GoBackNSender:
             pkt = self.create_packet(payload, seq_n)
             self.client.send(pkt)
             sch_timeout(seq_n)
-            print(f"Sent packet {seq_n}.")
+            print(
+                f"Sent packet {seq_n}/{len(self.buf)} ({len(payload)} bytes).")
 
             # Checking if another send should be scheduled and scheduling it if need be
             if seq_n < self.seq_max:
@@ -128,7 +134,7 @@ class GoBackNSender:
                 for ex_ev in sch.queue:
                     if ex_ev != ev:
                         sch.cancel(ex_ev)
-            elif ack_seq >= self.seq_max:
+            elif ack_seq > self.seq_max:
                 print(f"Recieved ACK above expected range... ignoring.")
             else:
                 # Cumulative seqs
@@ -210,21 +216,26 @@ class GoBackNReceiver:
         while True:
             pkt = self.client.recv()
             if pkt == None:
-                print("[GBNR] Timed out")
+                print(f"Timed out waiting for seq={self.curr_seq}")
                 continue
 
             res = self.decode_packet(pkt)
             if res == None:
-                print("[GBNR] Couldn't parse packet!")
+                print(f"Malformed packet (seq={self.curr_seq})!")
                 continue
 
             seq, data = res
+            print(f"Recieved packet seq={seq}, expected seq={self.curr_seq}")
 
             if seq == self.curr_seq:
                 should_continue = deliver(data)
+                print(f"Delivered packet seq={seq} ({len(data)} bytes).")
                 self.client.send(self.create_ack_packet())
                 self.curr_seq += 1
                 if not should_continue:
+                    print("Deliverer requested to stop receiving.")
                     break
             else:
+                print(f"Unexpected seq, ACKing seq={self.curr_seq - 1}.")
                 self.client.send(self.create_ack_packet(self.curr_seq - 1))
+        print("Receiver finished receiving.")
