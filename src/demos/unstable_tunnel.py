@@ -7,10 +7,10 @@ a = UDPDuplex("localhost", TUNNEL_A_IN, "localhost", TUNNEL_A_DST)
 b = UDPDuplex("localhost", TUNNEL_B_IN, "localhost", TUNNEL_B_DST)
 
 router = Router()
-router.drop_chance = 0.1
-router.corrupt_chance = 0.1
+router.drop_chance = 0.15
+router.corrupt_chance = 0.25
 router.min_delay = 1
-router.max_delay = 5
+router.max_delay = 4
 
 tunnel = UnstableTunnel(router)
 tunnel.start(a, b)

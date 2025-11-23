@@ -1,0 +1,11 @@
+Hello file recepticle!
+
+This is a message from the sender.
+It's not super long, but it's long enough that is has to
+be split into several packets, which is great for
+demonstration purposes.
+
+I hope you are doing well.
+
+Sincerely,
+~ send_file.py
