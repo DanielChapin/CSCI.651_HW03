@@ -18,12 +18,14 @@ This project uses no dependencies, but a `requirements.txt` is provided nonethel
 
 ## Demos
 
-To run a demo, either run `demo.sh <demo_name>` or...
+To run a demo, either run `demo.sh <demo_name> ...args...` or...
 ```sh
 source venv/bin/activate
 cd src
 python3 -m demos.<demo_name>
 ```
+
+Please note that if using `demo.sh`, all paths must either be global or relative to `src/`.
 
 ### udp_duplex
 
@@ -63,11 +65,11 @@ First shell:
 ```
 Second shell:
 ```sh
-./demo udp_duplex 4381 4380
+./demo.sh udp_duplex 4381 4380
 ```
 Third shell:
 ```sh
-./demo udp_duplex 4383 4382
+./demo.sh udp_duplex 4383 4382
 ```
 
 ### file_recepticle
@@ -79,8 +81,17 @@ This argument should not be a directory path.
 It should be a file path.
 Also note that the algorithm tries indefinitely to transfer the file even if it doesn't get responses.
 
+Run with the `-h` flag to display the help message which contains all parameters.
+
+Example:
+```sh
+./demo.sh file_recepticle ../message.txt
+```
+
 ### send_file
 
 This program is the sending end of the file sharing implementation.
 
 The only required argument is a path to the file to be sent.
+
+Run with the `-h` flag to display the help message which contains all parameters.

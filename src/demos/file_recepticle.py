@@ -1,16 +1,21 @@
 from UDPDuplex import UDPDuplex
 from rdt import GoBackNReceiver, UDPDuplexGoBackNClient
-from argparse import ArgumentParser
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from pathlib import Path
 
 
 def argp():
-    p = ArgumentParser()
-    p.add_argument("--interface", type=str, default="localhost")
-    p.add_argument("--port", type=int, default=4382)
-    p.add_argument("--sender", type=str, default="localhost")
-    p.add_argument("--sender-port", type=int, default=4381)
-    p.add_argument("localpath", type=Path)
+    p = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
+    p.add_argument("--interface", type=str, default="localhost",
+                   help="Interface to bind to")
+    p.add_argument("--port", type=int, default=4382,
+                   help="Port to bind to")
+    p.add_argument("--sender", type=str, default="localhost",
+                   help="Sender interface")
+    p.add_argument("--sender-port", type=int, default=4381,
+                   help="Sender port")
+    p.add_argument("localpath", type=Path,
+                   help="Local path to save the received file")
     return p
 
 
