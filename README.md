@@ -9,6 +9,17 @@ Note that the file sharing is also implemented via the demos so that the unstabl
 The style of file sharing I went with was a server (`file_recepticle`) that waits for a connect and recieves a file from a sender.
 As such, the sender initiates the connection and selects the file.
 
+## Setup
+
+`Makefile` has been provided for setup - run `make setup`.
+
+Otherwise,
+```sh
+mkdir out/
+python3 -m venv venv
+source venv/bin/activate && pip install -r requirements.txt
+```
+
 ## Usage Instructions
 
 This project has a series of demos for individual parts as well as the file transfer programs, which are also implemented in the same way as the demos (explained below).
