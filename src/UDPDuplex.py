@@ -9,10 +9,11 @@ from contextlib import AbstractContextManager
 
 @dataclass
 class JoinedUDPHandle(AbstractContextManager):
+    """A handle for sending and receiving UDP packets."""
     sock: socket
     dst: Tuple[str, int]
     recv: Callable[[bytes], Any] | None = None
-    close_event: Event = field(default=Event())
+    close_event: Event = field(default_factory=Event)
     listen_thread: Thread | None = field(default=None)
 
     def __enter__(self) -> "JoinedUDPHandle":
@@ -27,6 +28,10 @@ class JoinedUDPHandle(AbstractContextManager):
         return False
 
     def listen(self):
+        """
+        Listens for incoming UDP packets and calls the recv callback when data is received.
+        This method should run in a separate thread and continues until the handle is closed.
+        """
         while not self.close_event.is_set():
             try:
                 data = self.listen_once()
@@ -38,25 +43,42 @@ class JoinedUDPHandle(AbstractContextManager):
                 # Socket is no longer valid
                 break
 
-    def listen_once(self):
+    def listen_once(self) -> bytes:
+        """
+        Listens for a single incoming UDP packet and returns the data.
+        This method blocks until a packet is received or a timeout occurs.
+        """
         return self.sock.recv(BUF_SIZE)
 
     def send(self, payload: bytes):
+        """
+        Sends a UDP packet to the destination.
+        @param payload  The data to send.
+        """
         self.sock.sendto(payload, self.dst)
 
     def close(self):
+        """
+        Closes the UDP handle, stopping any listening threads and closing the socket.
+        """
         self.sock.close()
         self.close_event.set()
 
 
 @dataclass
 class UDPDuplex:
+    """A UDP interface that can send and receive packets to/from a specified destination."""
     host: str
     port: int
     dst: str
     dst_port: int
 
     def create_handle(self, recv: Callable[[bytes], Any] | None = None) -> JoinedUDPHandle:
+        """
+        Creates a JoinedUDPHandle for sending and receiving packets.
+        @param recv  An optional callback function to handle received packets.
+        @return  A JoinedUDPHandle instance.
+        """
         handle = JoinedUDPHandle(socket(
             AF_INET, SOCK_UDP), (self.dst, self.dst_port), recv)
 

@@ -8,23 +8,37 @@ from threading import Thread
 
 
 class GoBackNClient:
+    """Abstract client interface for Go-Back-N protocol"""
     timeout: float | None
 
     def __init__(self, timeout: float | None) -> None:
         self.timeout = timeout
 
     def send(self, payload: bytes):
+        """
+        Sends a payload to the remote endpoint.
+        @param payload  The bytes to send.
+        """
         raise NotImplementedError()
 
     def recv(self) -> bytes | None:
+        """
+        Receives a payload from the remote endpoint.
+        @return  The received bytes, or None if timed out.
+        """
         raise NotImplementedError()
 
 
 class UDPDuplexGoBackNClient(GoBackNClient):
+    """Go-Back-N client implementation over UDPDuplex"""
     duplex: UDPDuplex
     handle: JoinedUDPHandle
 
     def __init__(self, duplex: UDPDuplex, timeout: float | None) -> None:
+        """
+        @param duplex  The UDPDuplex instance to use for communication.
+        @param timeout  The timeout for receiving packets, in seconds.
+        """
         super().__init__(timeout)
         self.duplex = duplex
         self.handle = duplex.create_handle()
@@ -41,6 +55,7 @@ class UDPDuplexGoBackNClient(GoBackNClient):
 
 
 class GoBackNSender:
+    """Go-Back-N sender implementation"""
     client: GoBackNClient
     n: int
     curr_seq: int
@@ -48,6 +63,10 @@ class GoBackNSender:
     buf: list[bytes]
 
     def __init__(self, client: GoBackNClient, n: int) -> None:
+        """
+        @param client  The GoBackNClient instance to use for communication.
+        @param n  The window size for the Go-Back-N protocol.
+        """
         assert n > 0
         self.client = client
         self.n = n
@@ -56,6 +75,12 @@ class GoBackNSender:
         self.buf = list()
 
     def create_packet(self, data: bytes, seq_num: int | None = None) -> bytes:
+        """
+        Creates a packet with the given data and sequence number.
+        @param data  The data payload for the packet.
+        @param seq_num  The sequence number for the packet. If None, uses the current sequence number.
+        @return  The encoded packet as bytes.
+        """
         # Packet format: <checksum(4 bytes)><seq_num(4 bytes)><data_size(4 bytes)><data(data_size bytes)>
         if seq_num is None:
             seq_num = self.curr_seq
@@ -72,6 +97,11 @@ class GoBackNSender:
         return checksum + dat
 
     def decode_ack_packet(self, packet: bytes) -> int | None:
+        """
+        Decodes an ACK packet and returns the acknowledged sequence number.
+        @param packet  The received ACK packet.
+        @return  The acknowledged sequence number, or None if the packet is invalid.
+        """
         if len(packet) != 8:
             return None
 
@@ -85,6 +115,11 @@ class GoBackNSender:
         return seq_num
 
     def push(self, data: bytes):
+        """
+        Queues data to be sent by the sender.
+        Splits data into chunks of maximum 64 bytes.
+        @param data  The data bytes to queue.
+        """
         max_len = 64
         if len(data) < max_len:
             self.buf.append(data)
@@ -94,9 +129,14 @@ class GoBackNSender:
             self.buf += payloads
 
     def start(self):
-        """Blocking function that transmits until all queued data has been received by the client"""
+        """
+        Blocking function that transmits until all queued data has been received by the client.
+        """
         sch = sched.scheduler(time.time, time.sleep)
         self.seq_max = min(self.seq_max, len(self.buf))
+
+        # This function contains what are effectively different states of the sender,
+        # which are implemented as mutually recursive events, and a receiver thread.
 
         def timeout_ev(seq_n: int):
             if seq_n < self.curr_seq:
@@ -159,6 +199,7 @@ class GoBackNSender:
                 recv_ev(pkt_in)
             print("No longer accepting packets.")
 
+        # Indicate to receiver when to stop
         recver_end_ev = Event()
         recver_thread = Thread(target=recver, args=(recver_end_ev,))
 
@@ -179,14 +220,23 @@ class GoBackNSender:
 
 
 class GoBackNReceiver:
+    """Go-Back-N receiver implementation"""
     client: GoBackNClient
     curr_seq: int
 
     def __init__(self, client: GoBackNClient) -> None:
+        """
+        @param client  The GoBackNClient instance to use for communication.
+        """
         self.client = client
         self.curr_seq = 1
 
     def create_ack_packet(self, seq_num: int | None = None) -> bytes:
+        """
+        Creates an ACK packet for the given sequence number.
+        @param seq_num  The sequence number to acknowledge. If None, acknowledges the current sequence.
+        @return  The ACK packet bytes.
+        """
         # ACK Packet format: <checksum(4 bytes)><seq_num(4 bytes)>
         if seq_num is None:
             seq_num = self.curr_seq
@@ -195,7 +245,11 @@ class GoBackNReceiver:
         return checksum + seq_bytes
 
     def decode_packet(self, packet: bytes) -> tuple[int, bytes] | None:
-        """Returns (seq_num, data) if packet is valid, else None."""
+        """
+        Decodes a data packet and returns the sequence number and data.
+        @param packet  The received data packet.
+        @return  A tuple of (sequence number, data), or None if the packet is invalid.
+        """
         if len(packet) < 12:
             return None
 
@@ -213,6 +267,10 @@ class GoBackNReceiver:
         return seq_num, data
 
     def recv(self, deliver: Callable[[bytes], bool]):
+        """
+        Blocking function that receives packets and delivers data to the provided callback.
+        @param deliver  A callback function that takes a bytes object and returns a bool indicating whether to continue receiving.
+        """
         while True:
             pkt = self.client.recv()
             if pkt == None:

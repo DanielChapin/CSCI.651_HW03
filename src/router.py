@@ -5,6 +5,7 @@ from random import random, randrange
 
 
 class Router:
+    """A simulated unreliable router that can drop, corrupt, and delay packets."""
     drop_chance: float
     corrupt_chance: float
     min_delay: float
@@ -20,21 +21,41 @@ class Router:
         self.auto_start = False
 
     def register_rx(self, port: int, rx: Callable[[bytes], Any]):
+        """
+        Registers a receiver callback for a given port.
+        @param port  The port number to register the receiver on.
+        @param rx    The receiver callback function that takes a bytes object.
+        """
         if port not in self.rxs:
             self.rxs[port] = list()
         self.rxs[port].append(rx)
 
     def unregister_rx(self, port: int, rx: Callable[[bytes], Any]):
+        """
+        Unregisters a receiver callback from a given port.
+        @param port  The port number to unregister the receiver from.
+        @param rx    The receiver callback function to remove.
+        """
         if port in self.rxs:
             self.rxs[port].remove(rx)
             if not self.rxs[port]:
                 del self.rxs[port]
 
     def output_packet(self, port: int, packet: bytes):
+        """
+        Outputs a packet to all registered receivers on the given port.
+        @param port    The port number to send the packet to.
+        @param packet  The packet data to send.
+        """
         for rx_handler in self.rxs.get(port, list()):
             rx_handler(packet)
 
     def corrupt_packet(self, packet: bytes) -> bytes:
+        """
+        Corrupts a packet by flipping random bits based on the corrupt_chance.
+        @param packet  The original packet bytes.
+        @return  The corrupted packet bytes.
+        """
         bit_len = len(packet) * 8
 
         result = bytearray(packet)
@@ -49,6 +70,11 @@ class Router:
         return bytes(result)
 
     def tx(self, port: int, packet: bytes):
+        """
+        Transmits a packet on a given port, potentially dropping, corrupting, and delaying it.
+        @param port    The port number to send the packet to.
+        @param packet  The packet data to send.
+        """
         if random() < self.drop_chance:
             return
 
@@ -61,4 +87,8 @@ class Router:
             self.start(False)
 
     def start(self, blocking: bool = True):
+        """
+        Starts the router's scheduler to process events.
+        @param blocking  If True, blocks until all scheduled events are processed.
+        """
         self.sch.run(blocking=blocking)

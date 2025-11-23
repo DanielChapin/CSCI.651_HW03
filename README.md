@@ -11,7 +11,10 @@ As such, the sender initiates the connection and selects the file.
 
 ## Usage Instructions
 
-This project has a series of demos for individual parts as well as the file transfer programs.
+This project has a series of demos for individual parts as well as the file transfer programs, which are also implemented in the same way as the demos (explained below).
+Each demo has its own command line arguments that are explained in their own sections.
+
+This project uses no dependencies, but a `requirements.txt` is provided nonetheless.
 
 ## Demos
 
@@ -71,6 +74,13 @@ Third shell:
 
 This program is the recieving end of the file sharing implementation.
 
+The only required argument to this program is where to save the file locally.
+This argument should not be a directory path.
+It should be a file path.
+Also note that the algorithm tries indefinitely to transfer the file even if it doesn't get responses.
+
 ### send_file
 
 This program is the sending end of the file sharing implementation.
+
+The only required argument is a path to the file to be sent.
